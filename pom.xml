@@ -24,6 +24,19 @@
         <rally-security.version>0.1.1</rally-security.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>github-common</id>
+            <name>RallyDeals GitHub Packages - rally-common</name>
+            <url>https://maven.pkg.github.com/RallyDeals/rally-common</url>
+        </repository>
+        <repository>
+            <id>github-security</id>
+            <name>RallyDeals GitHub Packages - rally-security</name>
+            <url>https://maven.pkg.github.com/RallyDeals/rally-security</url>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
