@@ -19,6 +19,7 @@ Thumbs.db
 
 ### Local-only personal notes (never push) ###
 SESSION-LOG.md
+GATEWAY-GUIDE.md
 
 ### Runtime logs (never commit) ###
 *.log
