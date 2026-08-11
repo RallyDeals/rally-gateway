@@ -1,0 +1,25 @@
+services:
+  gateway:
+    build: .
+    container_name: rally-gateway
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      # JWT_SECRET is required (see .env.example) — never defaulted in compose.
+      JWT_SECRET: ${JWT_SECRET}
+      # Point each URI at wherever the service actually runs. The defaults below assume
+      # the services are running on the Docker host (IntelliJ / mvn spring-boot:run).
+      AUTH_SERVICE_URI: ${AUTH_SERVICE_URI:-http://host.docker.internal:8084}
+      CATALOG_SERVICE_URI: ${CATALOG_SERVICE_URI:-http://host.docker.internal:8083}
+      DEAL_SERVICE_URI: ${DEAL_SERVICE_URI:-http://host.docker.internal:8085}
+      PARTICIPATION_SERVICE_URI: ${PARTICIPATION_SERVICE_URI:-http://host.docker.internal:8086}
+      INVENTORY_SERVICE_URI: ${INVENTORY_SERVICE_URI:-http://host.docker.internal:8087}
+      ORDER_SERVICE_URI: ${ORDER_SERVICE_URI:-http://host.docker.internal:8010}
+      PAYMENT_SERVICE_URI: ${PAYMENT_SERVICE_URI:-http://host.docker.internal:8082}
+      NOTIFICATION_SERVICE_URI: ${NOTIFICATION_SERVICE_URI:-http://host.docker.internal:8088}
+      CORS_ORIGIN_DEV: ${CORS_ORIGIN_DEV:-http://localhost:5173}
+      CORS_ORIGIN_PROD: ${CORS_ORIGIN_PROD:-http://localhost:4200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
