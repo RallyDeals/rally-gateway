@@ -53,7 +53,8 @@ spring:
             - id: catalog
               uri: ${CATALOG_SERVICE_URI:http://localhost:8083}
               predicates:
-                - Path=/products/**,/categories/**
+                # uploads here related to img of products
+                - Path=/products/**,/categories/**,/uploads/**
 
             # ---------- Participation Service (:8086) ----------
             # Specific deal sub-paths MUST come before the broad /deals/** deal route —
@@ -104,7 +105,9 @@ rally:
   gateway:
     # Gap A15: /auth/** is public so nobody gets locked out of login/register/refresh.
     # /auth/me is NOT public — it needs the injected X-User-Id.
+    # /uploads is public static product media — <img> tags cannot carry a JWT.
     public-paths:
       - /auth/login
       - /auth/register
       - /auth/refresh
+      - /uploads
