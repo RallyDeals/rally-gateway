@@ -27,4 +27,5 @@ public class GatewayProperties {
     private String bearerPrefix = "Bearer ";
     private String userIdHeader = "X-User-Id";
     private String userRoleHeader = "X-User-Role";
+    private String userNameHeader = "X-User-Name";
 }

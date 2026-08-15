@@ -67,6 +67,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
         String userId = jwtService.getUserId(claims);
         List<String> roles = jwtService.getRoles(claims);
+        String username = jwtService.getUsername(claims);
 
         ServerWebExchange authenticated = exchange.mutate()
                 .request(request -> request.headers(headers -> {
@@ -76,6 +77,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.set(properties.getUserIdHeader(), userId);
                     if (!roles.isEmpty()) {
                         headers.set(properties.getUserRoleHeader(), String.join(",", roles));
+                    }
+                    if(!username.isEmpty()) {
+                        headers.set(properties.getUserNameHeader(), username);
                     }
                 }))
                 .build();
@@ -94,6 +98,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.remove(properties.getAuthorizationHeader());
                     headers.remove(properties.getUserIdHeader());
                     headers.remove(properties.getUserRoleHeader());
+                    headers.remove(properties.getUserNameHeader());
                 }))
                 .build();
     }
