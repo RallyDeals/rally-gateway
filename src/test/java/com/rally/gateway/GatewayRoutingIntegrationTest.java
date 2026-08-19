@@ -51,6 +51,12 @@ class GatewayRoutingIntegrationTest {
         // An indexed element cannot be mixed with the YAML routes list ("left unbound"),
         // so the whole list is re-declared here, mirroring the routes in application.yml
         // plus a stub route pointed at the random-port downstream.
+        // Rate limiting (RequestRateLimiter default-filter from application.yml) needs a
+        // live Redis; drop it here so the integration tests stay hermetic — only the JWT
+        // stripping safety net remains.
+        registry.add("spring.cloud.gateway.server.webflux.default-filters[0]",
+                () -> "RemoveRequestHeader=Authorization");
+
         registry.add("spring.cloud.gateway.server.webflux.routes[0].id", () -> "auth");
         registry.add("spring.cloud.gateway.server.webflux.routes[0].uri", () -> "http://localhost:8084");
         registry.add("spring.cloud.gateway.server.webflux.routes[0].predicates[0]", () -> "Path=/auth/**,/users/**");

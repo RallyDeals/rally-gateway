@@ -18,6 +18,16 @@ spring:
   application:
     name: rally-gateway
 
+  data:
+    redis:
+      # Rate limiter backend. Defaults to a local Redis on 6379; override with
+      # REDIS_HOST / REDIS_PORT env vars (or .env). Short timeouts so a dead Redis
+      # fails open quickly instead of hanging requests.
+      connect-timeout: 2s
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
+
   cloud:
     gateway:
       server:
@@ -26,6 +36,16 @@ spring:
           # too, but this guarantees it even if a route is added later without a filter.
           default-filters:
             - RemoveRequestHeader=Authorization
+            # Rate limit EVERY request (token bucket backed by Redis — see
+            # config/RateLimitingConfig.java for the key strategy). 20 req/s steady,
+            # burst of 40. 429 Too Many Requests once the bucket is empty. The gateway
+            # fails OPEN: if Redis is down the request still goes through.
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userKeyResolver}"
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:

@@ -1,4 +1,15 @@
 services:
+  # Redis backend for the gateway's rate limiter (RequestRateLimiter). Start it with:
+  #   docker compose up -d redis
+  redis:
+    image: redis:7-alpine
+    container_name: rally-gateway-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
   gateway:
     build: .
     container_name: rally-gateway
@@ -23,3 +34,6 @@ services:
       CORS_ORIGIN_PROD: ${CORS_ORIGIN_PROD:-http://localhost:4200}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  redis-data:
