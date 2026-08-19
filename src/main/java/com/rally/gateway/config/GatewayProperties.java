@@ -28,4 +28,7 @@ public class GatewayProperties {
     private String userIdHeader = "X-User-Id";
     private String userRoleHeader = "X-User-Role";
     private String userNameHeader = "X-User-Name";
+
+    /** Trace/correlation header. Always reset to a fresh UUID per request. */
+    private String requestIdHeader = "X-Request-Id";
 }

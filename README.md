@@ -1,8 +1,8 @@
 # Rally API Gateway
 
 Single entry point for the RallyDeals platform. Routes client traffic to the internal
-services, validates JWTs, and injects identity headers downstream. No business logic,
-no database.
+services, validates JWTs, injects identity headers downstream, adds a tracing header,
+and rate-limits every request with Redis. No business logic, no database.
 
 **Spec:** `groupdeal-architecture.md` §4.1, `PROJECT-REFERENCE.md` §3 (identity model),
 `gaps-and-solutions.md` A14–A18.
@@ -24,12 +24,17 @@ Gateway → Service  X-User-Id: <JWT sub>
    only from the gateway). Client-supplied `X-User-Id` / `X-User-Role` are removed
    on every request, so they cannot be forged (gap A15/A16).
 
+Every request also gets a fresh `X-Request-Id` tracing header (client-supplied values
+are discarded) and consumes a token from a Redis-backed rate-limit bucket (§ Rate
+limiting below).
+
 ## Dependencies
 
 | Library | Version | What the gateway uses it for |
 |---|---|---|
 | `com.rally:rally-common` | `0.3.0-SNAPSHOT` | Exception vocabulary only — `ErrorResponse`, `UnauthenticatedException` |
 | `com.rally:rally-security` | `0.1.1` | JWT — `JwtService`, `JwtProperties` (moved out of `rally-common`) |
+| `org.springframework.boot:spring-boot-starter-data-redis-reactive` | (managed by Boot) | Redis client for the rate limiter |
 
 JWT support used to live inside `rally-common`; it was split into the dedicated
 `rally-security` package. The gateway depends on **both** now: `rally-security` for
@@ -66,6 +71,28 @@ Only these paths bypass JWT validation (`rally.gateway.public-paths`):
 Everything else — including `/auth/me` and all business endpoints — requires a valid
 JWT and gets a `401` in the standard rally-common `ErrorResponse` shape otherwise.
 
+## Rate limiting
+
+Spring Cloud Gateway's built-in `RequestRateLimiter` filter (declared as a
+**default filter**, so it covers every route) backed by a **Redis token bucket**:
+
+- **Bucket key** — `config/RateLimitingConfig.java` picks the key per request:
+  `user:<X-User-Id>` for authenticated calls, `ip:<remote-addr>` for the rest.
+- **20 tokens/sec refill, burst of 40** — one request = one token
+  (`replenishRate: 20`, `burstCapacity: 40`, `requestedTokens: 1`).
+- Exhausted bucket → **`429 Too Many Requests`**.
+- **Fails open** — if Redis is down, requests pass (limit temporarily skipped).
+
+Redis is expected at `localhost:6379` (override via `REDIS_HOST` / `REDIS_PORT`) and
+runs in the included compose file:
+
+```bash
+docker compose up -d redis   # then: docker exec rally-gateway-redis redis-cli ping → PONG
+```
+
+The integration tests drop the rate-limiter default filter, so `mvn test` needs **no
+Redis**. Full line-by-line explanation: `GATEWAY-GUIDE.md` §5.4 + §13.12.
+
 ## Run
 
 ```bash
@@ -88,6 +115,8 @@ Env vars worth knowing:
 | `CATALOG_SERVICE_URI` / `ORDER_SERVICE_URI` / ... | `http://localhost:<port>` | downstream URIs |
 | `CORS_ORIGIN_DEV` | `http://localhost:5173` | allowed Angular origin |
 | `CORS_ORIGIN_PROD` | `http://localhost:4200` | allowed Angular origin |
+| `REDIS_HOST` | `localhost` | Redis host for the rate limiter |
+| `REDIS_PORT` | `6379` | Redis port for the rate limiter |
 
 ## Test
 
@@ -99,6 +128,8 @@ mvn test   # no JWT_SECRET needed — unit tests generate a random key, integrat
 - `filter/JwtAuthGlobalFilterTest` — header injection / stripping / 401s (unit).
 - `filter/FallbackGlobalFilterTest` — downstream failure → clean 503 JSON, and the
   already-committed response → original error re-thrown (unit).
+- `filter/RequestIdGlobalFilterTest` — `X-Request-Id` injected, client values replaced (unit).
+- `config/RateLimitingConfigTest` — rate-limit key strategy: `user:<id>` vs `ip:<addr>` (unit).
 - `RouteConfigTest` — the full route table and first-match routing (incl. deal vs
   participation).
 - `GatewayRoutingIntegrationTest` — end-to-end against a stub downstream: valid JWT →
