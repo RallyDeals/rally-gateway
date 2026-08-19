@@ -62,7 +62,7 @@ spring:
             - id: participation
               uri: ${PARTICIPATION_SERVICE_URI:http://localhost:8086}
               predicates:
-                - Path=/deals/*/join,/deals/*/leave,/deals/*/participants,/deals/*/progress,/deals/*/invite-link,/invites/**
+                - Path=/deals/*/join,/deals/*/leave,/deals/*/participants,/deals/*/progress,/deals/*/activity,/deals/*/invite-link,/invites/**
 
             # ---------- Deal Service (:8085) ----------
             - id: deal

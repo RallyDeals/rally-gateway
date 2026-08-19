@@ -78,7 +78,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                     if (!roles.isEmpty()) {
                         headers.set(properties.getUserRoleHeader(), String.join(",", roles));
                     }
-                    if(!username.isEmpty()) {
+                    if (username != null && !username.isEmpty()) {
                         headers.set(properties.getUserNameHeader(), username);
                     }
                 }))
