@@ -9,6 +9,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -87,8 +88,10 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         return chain.filter(authenticated);
     }
 
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private boolean isPublic(String path) {
-        return properties.getPublicPaths().stream().anyMatch(path::startsWith);
+        return properties.getPublicPaths().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
     }
 
     /** Remove identity headers (including the raw token) on public paths before forwarding. */

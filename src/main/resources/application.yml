@@ -131,3 +131,4 @@ rally:
       - /auth/register
       - /auth/refresh
       - /uploads
+      - /deals
