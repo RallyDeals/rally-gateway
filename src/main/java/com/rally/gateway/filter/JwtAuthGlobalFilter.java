@@ -7,6 +7,7 @@ import io.jsonwebtoken.Claims;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -47,8 +48,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
+        HttpMethod method = exchange.getRequest().getMethod();
 
-        if (isPublic(path)) {
+        if (isPublic(path, method)) {
             return chain.filter(stripIdentityHeaders(exchange));
         }
 
@@ -90,7 +92,15 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
-    private boolean isPublic(String path) {
+    private boolean isPublic(String path, HttpMethod method) {
+        // GET /deals (list) and GET /deals/{id} are public for anonymous browse — everything
+        // else under /deals (create/update/cancel, sub-paths like /deals/{id}/join, and
+        // analytics — sellers only) still needs a real identity. "/deals/*" is a single path
+        // segment, so it covers /deals/{id} without reaching into deeper sub-paths.
+        if (HttpMethod.GET.equals(method) && !"/deals/analytics".equals(path)
+                && ("/deals".equals(path) || PATH_MATCHER.match("/deals/*", path))) {
+            return true;
+        }
         return properties.getPublicPaths().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
     }
 
