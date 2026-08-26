@@ -1,7 +1,7 @@
 package com.rally.gateway;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rally.security.JwtService;
+import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +16,12 @@ import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PublicKey;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +38,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GatewayRoutingIntegrationTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    // Test-only RSA key pair. Real tokens come from rally-auth's private key; this test
+    // only needs a public key for the gateway to verify against and the matching private
+    // key to mint tokens with, so no production key material is needed here.
+    private static final KeyPair KEY_PAIR = generateKeyPair();
 
     private static final DisposableServer STUB = HttpServer.create()
             .port(0)
@@ -97,13 +108,12 @@ class GatewayRoutingIntegrationTest {
 
         registry.add("rally.gateway.public-paths",
                 () -> "/auth/login,/auth/register,/auth/refresh,/stub/public");
+
+        registry.add("rally.jwt.public-key", () -> toPem(KEY_PAIR.getPublic()));
     }
 
     @Autowired
     private WebTestClient webTestClient;
-
-    @Autowired
-    private JwtService jwtService;
 
     @AfterAll
     static void stopStub() {
@@ -112,7 +122,7 @@ class GatewayRoutingIntegrationTest {
 
     @Test
     void validTokenIsReplacedByIdentityHeadersDownstream() {
-        String token = jwtService.generateAccessToken("user-1", List.of("SELLER"));
+        String token = signToken("user-1", "SELLER");
 
         webTestClient.get()
                 .uri("/stub/echo")
@@ -190,6 +200,33 @@ class GatewayRoutingIntegrationTest {
                 .isEqualTo("http://localhost:5173");
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS))
                 .isEqualTo("true");
+    }
+
+    private static KeyPair generateKeyPair() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String toPem(PublicKey key) {
+        return "-----BEGIN PUBLIC KEY-----"
+                + Base64.getEncoder().encodeToString(key.getEncoded())
+                + "-----END PUBLIC KEY-----";
+    }
+
+    private static String signToken(String userId, String role) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(userId)
+                .claim("role", role)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(900)))
+                .signWith(KEY_PAIR.getPrivate(), Jwts.SIG.RS256)
+                .compact();
     }
 
     private static String pathOf(reactor.netty.http.server.HttpServerRequest request) {

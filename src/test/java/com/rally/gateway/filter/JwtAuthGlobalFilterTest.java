@@ -5,7 +5,6 @@ import com.rally.security.JwtProperties;
 import com.rally.security.JwtService;
 import com.rally.gateway.config.GatewayProperties;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -15,12 +14,13 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,21 +29,20 @@ class JwtAuthGlobalFilterTest {
 
     private JwtService jwtService;
     private JwtAuthGlobalFilter filter;
-    private String secret;
+    private PrivateKey privateKey;
 
     @BeforeEach
-    void setUp() {
-        // This unit test does NOT need the production secret — the filter logic only
-        // cares that tokens and validation share a key. Generate a random one at
-        // runtime (64 bytes -> 88 chars, well above jjwt's 256-bit minimum), so no
-        // secret string exists in source code.
-        byte[] keyBytes = new byte[64];
-        new SecureRandom().nextBytes(keyBytes);
-        secret = Base64.getEncoder().encodeToString(keyBytes);
+    void setUp() throws Exception {
+        // This unit test does NOT need the production key pair — the filter logic only
+        // cares that tokens are RS256-signed and validated against the matching public
+        // key. Generate a fresh key pair at runtime so no key material exists in source.
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair keyPair = generator.generateKeyPair();
+        privateKey = keyPair.getPrivate();
 
         JwtProperties jwtProperties = new JwtProperties();
-        jwtProperties.setSecret(secret);
-        jwtProperties.setIssuer("test");
+        jwtProperties.setPublicKey(toPem(keyPair.getPublic()));
         jwtService = new JwtService(jwtProperties);
 
         GatewayProperties gatewayProperties = new GatewayProperties();
@@ -54,7 +53,7 @@ class JwtAuthGlobalFilterTest {
 
     @Test
     void validTokenInjectsIdentityHeadersAndStripsToken() {
-        String token = jwtService.generateAccessToken("user-1", List.of("SELLER", "BUYER"));
+        String token = signToken("user-1", "SELLER", Instant.now().plusSeconds(900));
 
         FilterOutcome outcome = runFilter(exchangeFor("/products",
                 "Authorization", "Bearer " + token,
@@ -64,7 +63,7 @@ class JwtAuthGlobalFilterTest {
         assertThat(outcome.chained).isTrue();
         HttpHeaders headers = outcome.forwarded.getRequest().getHeaders();
         assertThat(headers.getFirst("X-User-Id")).isEqualTo("user-1");
-        assertThat(headers.getFirst("X-User-Role")).isEqualTo("SELLER,BUYER");
+        assertThat(headers.getFirst("X-User-Role")).isEqualTo("SELLER");
         assertThat(headers).doesNotContainKey("Authorization");
     }
 
@@ -91,14 +90,7 @@ class JwtAuthGlobalFilterTest {
 
     @Test
     void expiredTokenOnProtectedPathReturns401() {
-        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        String expired = Jwts.builder()
-                .subject("user-1")
-                .issuer("test")
-                .issuedAt(new Date(System.currentTimeMillis() - 60_000))
-                .expiration(new Date(System.currentTimeMillis() - 30_000))
-                .signWith(key)
-                .compact();
+        String expired = signToken("user-1", "SELLER", Instant.now().minusSeconds(30));
 
         FilterOutcome outcome = runFilter(exchangeFor("/products", "Authorization", "Bearer " + expired));
 
@@ -126,6 +118,47 @@ class JwtAuthGlobalFilterTest {
 
         assertThat(outcome.chained).isTrue();
         assertThat(outcome.forwarded.getRequest().getHeaders()).doesNotContainKey("X-User-Id");
+    }
+
+    @Test
+    void getDealsIsPublicButPostDealsStillRequiresAuthAndGetsUserIdInjected() {
+        // Regression: application.yml's rally.gateway.public-paths used to list "/deals"
+        // (meant only to make GET /deals public for anonymous browse), but that list is
+        // matched by path only, with no method check — so it silently made POST /deals
+        // public too, skipping JWT validation and X-User-Id injection on create. "/deals"
+        // was removed from that list; GET /deals stays public only via isPublic()'s
+        // explicit GET-only check below, and POST /deals must still require auth.
+        FilterOutcome getOutcome = runFilter(exchangeFor("/deals"));
+        assertThat(getOutcome.chained).isTrue();
+        assertThat(getOutcome.forwarded.getRequest().getHeaders()).doesNotContainKey("X-User-Id");
+
+        MockServerWebExchange postExchange = MockServerWebExchange.from(MockServerHttpRequest.post("/deals").build());
+        FilterOutcome missingTokenOutcome = runFilter(postExchange);
+        assertThat(missingTokenOutcome.chained).isFalse();
+        assertThat(missingTokenOutcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
+
+        String token = signToken("user-1", "BUYER", Instant.now().plusSeconds(900));
+        MockServerWebExchange authedPostExchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/deals").header("Authorization", "Bearer " + token).build());
+        FilterOutcome authedOutcome = runFilter(authedPostExchange);
+        assertThat(authedOutcome.chained).isTrue();
+        assertThat(authedOutcome.forwarded.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("user-1");
+    }
+
+    private String signToken(String userId, String role, Instant expiry) {
+        return Jwts.builder()
+                .subject(userId)
+                .claim("role", role)
+                .issuedAt(Date.from(Instant.now().minusSeconds(60)))
+                .expiration(Date.from(expiry))
+                .signWith(privateKey, Jwts.SIG.RS256)
+                .compact();
+    }
+
+    private static String toPem(PublicKey key) {
+        return "-----BEGIN PUBLIC KEY-----"
+                + Base64.getEncoder().encodeToString(key.getEncoded())
+                + "-----END PUBLIC KEY-----";
     }
 
     private static MockServerWebExchange exchangeFor(String path, String... headerPairs) {

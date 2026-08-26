@@ -16,13 +16,25 @@ public class WebClientConfig {
 
     @Bean
     public WebClient catalogServiceWebClient(WebClient.Builder builder,
-            @Value("${CATALOG_SERVICE_URI:http://localhost:8083}") String uri) {
+                                             @Value("${CATALOG_SERVICE_URI:http://localhost:8083}") String uri) {
         return builder.baseUrl(uri).build();
     }
 
     @Bean
     public WebClient dealServiceWebClient(WebClient.Builder builder,
-            @Value("${DEAL_SERVICE_URI:http://localhost:8081}") String uri) {
+                                          @Value("${DEAL_SERVICE_URI:http://localhost:8085}") String uri) {
+        return builder.baseUrl(uri).build();
+    }
+
+    @Bean
+    public WebClient authServiceWebClient(WebClient.Builder builder,
+                                          @Value("${AUTH_SERVICE_URI:http://localhost:8084}") String uri) {
+        return builder.baseUrl(uri).build();
+    }
+
+    @Bean
+    public WebClient participationWebClient(WebClient.Builder builder,
+                                          @Value("${PARTICIPATION_SERVICE_URI:http://localhost:8086}") String uri) {
         return builder.baseUrl(uri).build();
     }
 }

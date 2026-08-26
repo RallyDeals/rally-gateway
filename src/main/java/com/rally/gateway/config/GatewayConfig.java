@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
  * Reuses rally-security's {@link JwtService} for validation without pulling in its
  * servlet-based auto-configuration (the gateway is a WebFlux application).
  *
- * <p>The JWT is signed HMAC (not encrypted) with the same {@code rally.jwt.secret}
- * every service shares, so tokens issued by the Auth Service validate here.
+ * <p>The JWT is signed RS256 (not encrypted) by the Auth Service's RSA private key;
+ * this service only holds the matching {@code rally.jwt.public-key} to verify it.
  *
  * <p>JWT support moved out of {@code rally-common} into the dedicated
  * {@code rally-security} package; rally-common still provides the exception

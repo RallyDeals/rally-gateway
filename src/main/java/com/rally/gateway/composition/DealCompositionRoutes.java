@@ -56,7 +56,7 @@ public class DealCompositionRoutes {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public RouteLocator dealCompositionRouteLocator(RouteLocatorBuilder builder,
-            @Value("${DEAL_SERVICE_URI:http://localhost:8081}") String dealServiceUri) {
+            @Value("${DEAL_SERVICE_URI:http://localhost:8085}") String dealServiceUri) {
 
         RewriteFunction<String, String> enrichPage = (exchange, body) -> enrichPage(body);
         RewriteFunction<String, String> enrichSingle = (exchange, body) -> enrichSingle(body);
