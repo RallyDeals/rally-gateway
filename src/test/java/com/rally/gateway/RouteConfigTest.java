@@ -36,7 +36,11 @@ class RouteConfigTest {
         List<String> ids = routesByIdentifier().keySet().stream().toList();
 
         assertThat(ids).containsExactlyInAnyOrder(
-                "auth", "catalog", "participation", "deal", "order", "payment", "inventory", "notification");
+                "auth", "catalog", "participation", "deal", "order", "payment", "inventory", "notification",
+                "deal-list-composed", "deal-create-composed", "deal-analytics", "deal-cancel-composed",
+                "deal-update-composed", "deal-get-composed", "product-list-composed", "product-admin-passthrough",
+                "product-get-composed", "profile-personal-info-composed", "profile-my-deals-composed",
+                "profile-my-deals-summary-composed");
     }
 
     @Test
@@ -72,12 +76,16 @@ class RouteConfigTest {
         assertRouteMatches("order", "/api/orders/my/12");
 
         assertRouteMatches("payment", "/api/payments/1");
-        assertRouteMatches("payment", "/api/users/1/payment-methods");
-        assertRouteMatches("payment", "/api/users/1/payment-methods/5");
+        assertRouteMatches("payment", "/api/payment-methods");
+        assertRouteMatches("payment", "/api/payment-methods/5");
 
         assertRouteMatches("inventory", "/inventory/1");
 
         assertRouteMatches("notification", "/notifications");
+
+        assertRouteMatches("profile-personal-info-composed", "/profile/personal-info");
+        assertRouteMatches("profile-my-deals-composed", "/profile/my-deals");
+        assertRouteMatches("profile-my-deals-summary-composed", "/profile/my-deals/summary");
     }
 
     private void assertRouteMatches(String routeId, String path) {
