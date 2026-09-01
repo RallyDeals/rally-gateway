@@ -3,6 +3,9 @@ package com.rally.gateway.config;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -19,9 +22,18 @@ import java.util.List;
 @Setter
 @ConfigurationProperties(prefix = "rally.gateway")
 public class GatewayProperties {
-
-    /** Paths that bypass JWT validation (gap A15). Exact prefixes, matched with startsWith. */
-    private List<String> publicPaths = List.of("/auth/login", "/auth/register", "/auth/refresh");
+    private List<String> publicPaths = List.of(
+            "/auth/login",
+            "/auth/register",
+            "/auth/verify-email",
+            "/auth/resend-verification-otp",
+            "/auth/forgot-password",
+            "/auth/verify-email-otp",
+            "/auth/verify-reset-otp",
+            "/auth/reset-password",
+            "/auth/refresh",
+            "/auth/logout",
+            "/uploads/**");
 
     private String authorizationHeader = "Authorization";
     private String bearerPrefix = "Bearer ";

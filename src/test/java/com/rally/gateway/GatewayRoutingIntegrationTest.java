@@ -92,7 +92,7 @@ class GatewayRoutingIntegrationTest {
         registry.add("spring.cloud.gateway.server.webflux.routes[5].id", () -> "payment");
         registry.add("spring.cloud.gateway.server.webflux.routes[5].uri", () -> "http://localhost:8082");
         registry.add("spring.cloud.gateway.server.webflux.routes[5].predicates[0]",
-                () -> "Path=/api/payments/**,/api/users/*/payment-methods/**");
+                () -> "Path=/api/payment-methods/**,/api/payments/**");
 
         registry.add("spring.cloud.gateway.server.webflux.routes[6].id", () -> "inventory");
         registry.add("spring.cloud.gateway.server.webflux.routes[6].uri", () -> "http://localhost:8087");
