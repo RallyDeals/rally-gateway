@@ -5,7 +5,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,gateway
 
 spring:
   # Load the git-ignored .env file (key=value, like a .properties file) into the
@@ -51,7 +51,7 @@ spring:
             cors-configurations:
               '[/**]':
                 allowed-origins:
-                  - ${CORS_ORIGIN_DEV:http://localhost:5173}
+                  - ${CORS_ORIGIN_DEV:http://localhost:4200}
                   - ${CORS_ORIGIN_PROD:http://localhost:4200}
                 allowed-methods:
                   - GET
@@ -68,6 +68,16 @@ spring:
               uri: ${AUTH_SERVICE_URI:http://localhost:8084}
               predicates:
                 - Path=/auth/**,/users/**
+
+            # ---------- Auth avatars — routed to the AUTH service, NOT catalog ----------
+            # User avatars (profilePicture) are stored and served by the auth service at
+            # /uploads/avatars/... . This must come BEFORE the broad catalog /uploads/**
+            # route (Spring Cloud Gateway uses the first matching route). Both the canonical
+            # /uploads/avatars/** and the legacy /auth/uploads/avatars/** forms are covered.
+            - id: auth-avatars
+              uri: ${AUTH_SERVICE_URI:http://localhost:8084}
+              predicates:
+                - Path=/uploads/avatars/**,/auth/uploads/**
 
             # ---------- Catalog Service (:8083) ----------
             - id: catalog
@@ -101,7 +111,7 @@ spring:
               uri: ${PAYMENT_SERVICE_URI:http://localhost:8082}
               predicates:
                 # {userId} is a single segment — ** mid-pattern is invalid in Spring PathPattern.
-                - Path=/api/payments/**,/api/users/*/payment-methods/**
+                - Path=/api/payment-methods/**,/api/payments/**
 
             # ---------- Inventory Service (:8087) ----------
             - id: inventory
@@ -111,24 +121,28 @@ spring:
 
             # ---------- Notification Service (:8088) ----------
             - id: notification
-              uri: ${NOTIFICATION_SERVICE_URI:http://localhost:8088}
+              uri: ${NOTIFICATION_SERVICE_URI:http://localhost:8011}
               predicates:
                 - Path=/notifications/**
 
 rally:
   jwt:
-    # Same value on every service (the Auth Service signs with it, the gateway and all
-    # services validate with it). Never hardcoded — comes from the JWT_SECRET env var
-    # (see .env.example; mirrors the order-service pattern). Required at startup.
-    secret: ${JWT_SECRET}
+    public-key: ${JWT_PUBLIC_KEY}
 
   gateway:
-    # Gap A15: /auth/** is public so nobody gets locked out of login/register/refresh.
-    # /auth/me is NOT public — it needs the injected X-User-Id.
-    # /uploads is public static product media — <img> tags cannot carry a JWT.
+    # /uploads/** is public static media (product images and user avatars) — <img> tags
+    # cannot carry a JWT. AntPathMatcher requires the trailing /** to cover sub-paths:
+    # a bare /uploads only matches the exact path, not /uploads/avatars/....
     public-paths:
       - /auth/login
       - /auth/register
+      - /auth/verify-email
+      - /auth/resend-verification-otp
+      - /auth/forgot-password
+      - /auth/verify-email-otp
+      - /auth/verify-reset-otp
+      - /auth/reset-password
       - /auth/refresh
-      - /uploads
+      - /auth/logout
+      - /uploads/**
       - /deals

@@ -20,8 +20,8 @@
     <properties>
         <java.version>21</java.version>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
-        <rally-common.version>0.3.0-SNAPSHOT</rally-common.version>
-        <rally-security.version>0.2.0</rally-security.version>
+        <rally-common.version>0.3.0</rally-common.version>
+        <rally-security.version>0.4.0</rally-security.version>
     </properties>
 
     <repositories>
@@ -102,6 +102,30 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <from>
+                        <image>eclipse-temurin:21-jre-alpine</image>
+                    </from>
+                    <to>
+                        <image>medhatdh/rally-gateway:latest</image>
+                    </to>
+                    <container>
+                        <mainClass>com.rally.gateway.GatewayApplication</mainClass>
+                        <ports>
+                            <port>8080</port>
+                        </ports>
+                        <jvmFlags>
+                            <jvmFlag>-Xms512m</jvmFlag>
+                            <jvmFlag>-Xmx512m</jvmFlag>
+                        </jvmFlags>
+                    </container>
+                    <containerizingMode>packaged</containerizingMode>
                 </configuration>
             </plugin>
         </plugins>
