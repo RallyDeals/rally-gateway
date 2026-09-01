@@ -63,6 +63,12 @@
             <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>com.rally</groupId>
             <artifactId>rally-common</artifactId>
             <version>${rally-common.version}</version>

@@ -12,12 +12,13 @@ and rate-limits every request with Redis. No business logic, no database.
 ```
 Client → Gateway  Authorization: Bearer <JWT>
 Gateway → Service  X-User-Id: <JWT sub>
-                   X-User-Role: <JWT roles, comma-joined>
+                   X-User-Role: <JWT role>
 ```
 
 1. The client sends `Authorization: Bearer <JWT>` to the **gateway only**.
 2. The gateway validates the JWT with rally-security `JwtService.parseAndValidate`
-   (HMAC-signed, **not** encrypted; same `rally.jwt.secret` on every service).
+   (RS256-signed, **not** encrypted, by the Auth Service's RSA private key; the gateway
+   only holds the matching public key, `rally.jwt.public-key`, to verify).
 3. The gateway **strips the token** and **injects `X-User-Id` / `X-User-Role`**
    before rerouting to the specific service.
 4. Services never validate JWTs — they trust the injected headers (they must come
