@@ -101,10 +101,12 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                 && ("/deals".equals(path) || PATH_MATCHER.match("/deals/*", path))) {
             return true;
         }
-        if(("/products".equals(path) || PATH_MATCHER.match("/products/*", path) && HttpMethod.GET.equals(method))){
+        if (HttpMethod.GET.equals(method) && !"/products/admin".equals(path)
+                && ("/products".equals(path) || PATH_MATCHER.match("/products/*", path))) {
             return true;
         }
-        if(("/categories".equals(path) || PATH_MATCHER.match("/categories/*", path) && HttpMethod.GET.equals(method))){
+        if (HttpMethod.GET.equals(method)
+                && ("/categories".equals(path) || PATH_MATCHER.match("/categories/*", path))) {
             return true;
         }
         return properties.getPublicPaths().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));

@@ -33,8 +33,14 @@ public class WebClientConfig {
     }
 
     @Bean
-    public WebClient participationWebClient(WebClient.Builder builder,
+    public WebClient participationServiceWebClient(WebClient.Builder builder,
                                           @Value("${PARTICIPATION_SERVICE_URI:http://localhost:8086}") String uri) {
+        return builder.baseUrl(uri).build();
+    }
+
+    @Bean
+    public WebClient orderServiceWebClient(WebClient.Builder builder,
+                                          @Value("${ORDER_SERVICE_URI:http://localhost:8081}") String uri) {
         return builder.baseUrl(uri).build();
     }
 }

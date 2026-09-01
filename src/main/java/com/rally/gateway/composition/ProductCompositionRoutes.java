@@ -2,8 +2,8 @@ package com.rally.gateway.composition;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +20,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.AbstractMap.SimpleEntry;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,17 +38,15 @@ import java.util.Set;
  * would otherwise match that literal path too.
  */
 @Configuration
+@RequiredArgsConstructor
 public class ProductCompositionRoutes {
 
     private static final Logger log = LoggerFactory.getLogger(ProductCompositionRoutes.class);
+    private static final String CONTEXT = "catalog-service";
 
     private final WebClient dealServiceWebClient;
     private final ObjectMapper objectMapper;
-
-    public ProductCompositionRoutes(WebClient dealServiceWebClient, ObjectMapper objectMapper) {
-        this.dealServiceWebClient = dealServiceWebClient;
-        this.objectMapper = objectMapper;
-    }
+    private final JsonRewriteSupport jsonRewriteSupport;
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -72,40 +69,15 @@ public class ProductCompositionRoutes {
     }
 
     private Mono<String> enrichProductList(String body) {
-        JsonNode root = readTree(body);
-        if (root == null) {
-            return Mono.just(body);
-        }
-        JsonNode itemsNode = root.path("items");
-        if (!itemsNode.isArray() || itemsNode.isEmpty()) {
-            return Mono.just(body);
-        }
-        ArrayNode items = (ArrayNode) itemsNode;
+        return jsonRewriteSupport.enrichArray(body, "items", "id", this::fetchDeals, this::mergeDeals, CONTEXT);
+    }
 
-        Set<String> productIds = new LinkedHashSet<>();
-        for (JsonNode product : items) {
-            String productId = product.path("id").asText(null);
-            if (productId != null) {
-                productIds.add(productId);
-            }
-        }
-        if (productIds.isEmpty()) {
-            return Mono.just(body);
-        }
+    private Mono<String> enrichProduct(String body) {
+        return jsonRewriteSupport.enrichSingle(body, "id", this::fetchDeals, this::mergeDeals, CONTEXT);
+    }
 
-        return fetchDeals(productIds).map(dealsByProduct -> {
-            for (JsonNode product : items) {
-                if (!(product instanceof ObjectNode productNode)) {
-                    continue;
-                }
-                String productId = product.path("id").asText(null);
-                JsonNode deals = productId == null ? null : dealsByProduct.get(productId);
-                if (deals != null) {
-                    productNode.set("deals", deals);
-                }
-            }
-            return writeValueAsString(root, body);
-        });
+    private void mergeDeals(ObjectNode productNode, JsonNode deals) {
+        productNode.set("deals", deals);
     }
 
     /** Fetches each product's deals independently — one failing lookup doesn't affect the rest. */
@@ -125,48 +97,5 @@ public class ProductCompositionRoutes {
                             return Mono.empty();
                         }))
                 .collectMap(SimpleEntry::getKey, SimpleEntry::getValue);
-    }
-
-    private Mono<String> enrichProduct(String body) {
-        JsonNode root = readTree(body);
-        if (!(root instanceof ObjectNode productNode)) {
-            return Mono.just(body);
-        }
-        String productId = root.path("id").asText(null);
-        if (productId == null) {
-            return Mono.just(body);
-        }
-
-        return dealServiceWebClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/deals").queryParam("productId", productId).build())
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .map(dealsPage -> {
-                    JsonNode content = dealsPage.path("content");
-                    productNode.set("deals", content.isArray() ? content : objectMapper.createArrayNode());
-                    return writeValueAsString(root, body);
-                })
-                .onErrorResume(ex -> {
-                    log.warn("Deal lookup failed for productId={}: {}", productId, ex.toString());
-                    return Mono.just(body);
-                });
-    }
-
-    private JsonNode readTree(String body) {
-        try {
-            return objectMapper.readTree(body);
-        } catch (Exception ex) {
-            log.warn("Failed to parse catalog-service response body as JSON: {}", ex.toString());
-            return null;
-        }
-    }
-
-    private String writeValueAsString(JsonNode node, String fallback) {
-        try {
-            return objectMapper.writeValueAsString(node);
-        } catch (Exception ex) {
-            log.warn("Failed to serialize composed product response, returning unenriched body: {}", ex.toString());
-            return fallback;
-        }
     }
 }
