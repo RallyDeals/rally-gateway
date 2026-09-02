@@ -84,7 +84,7 @@ public class ProductCompositionRoutes {
     private Mono<Map<String, JsonNode>> fetchDeals(Set<String> productIds) {
         return Flux.fromIterable(productIds)
                 .flatMap(id -> dealServiceWebClient.get()
-                        .uri(uriBuilder -> uriBuilder.path("/deals").queryParam("productId", id).build())
+                        .uri(uriBuilder -> uriBuilder.path("/deals").queryParam("productId", id).queryParam("status", "active").build())
                         .retrieve()
                         .bodyToMono(JsonNode.class)
                         .map(dealsPage -> {
