@@ -1,5 +1,5 @@
 server:
-  port: ${GATEWAY_PORT:8080}
+  port: ${GATEWAY_PORT:8090}
 
 management:
   endpoints:
@@ -145,4 +145,3 @@ rally:
       - /auth/refresh
       - /auth/logout
       - /uploads/**
-      - /deals
