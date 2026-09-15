@@ -7,11 +7,9 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,56 +24,15 @@ import java.util.Set;
 public class ProfileMyDealsSummaryService {
 
     private static final Logger log = LoggerFactory.getLogger(ProfileMyDealsSummaryService.class);
-    private static final int SUMMARY_PAGE_SIZE = 100;
-    private static final int SUMMARY_PAGE_CONCURRENCY = 4;
 
     private final ParticipationPageClient participationPageClient;
     private final DealBulkFetchClient dealBulkFetchClient;
     private final ObjectMapper objectMapper;
 
     public Mono<JsonNode> buildMyDealsSummaryFor(String userId) {
-        return fetchAllParticipations(userId)
+        return participationPageClient.fetchAllParticipations(userId, null)
                 .flatMap(this::bulkFetchDealsFor)
                 .map(this::buildMyDealsSummaryResponse);
-    }
-
-    private Mono<List<JsonNode>> fetchAllParticipations(String userId) {
-        return participationPageClient.fetchParticipationsPage(userId, 1, SUMMARY_PAGE_SIZE)
-                .flatMap(firstPage -> {
-                    List<JsonNode> items = new ArrayList<>(toList(firstPage.path("participations")));
-                    int totalElements = firstPage.path("totalElements").asInt(items.size());
-                    int totalPages = totalElements == 0 ? 0
-                            : (totalElements + SUMMARY_PAGE_SIZE - 1) / SUMMARY_PAGE_SIZE;
-
-                    log.debug("summary fan-out for userId={}: totalElements={} totalPages={}",
-                            userId, totalElements, totalPages);
-
-                    if (totalPages <= 1) {
-                        return Mono.just(items);
-                    }
-                    // /participations is 1-based; page 1 is already fetched above, so the
-                    // remaining pages are 2..totalPages.
-                    return Flux.range(2, totalPages - 1)
-                            .flatMap(page -> participationPageClient.fetchParticipationsPage(userId, page, SUMMARY_PAGE_SIZE),
-                                    SUMMARY_PAGE_CONCURRENCY)
-                            .collectList()
-                            .map(morePages -> {
-                                for (JsonNode page : morePages) {
-                                    items.addAll(toList(page.path("participations")));
-                                }
-                                log.debug("summary fan-out complete for userId={}: fetched {} participations across {} pages",
-                                        userId, items.size(), totalPages);
-                                return items;
-                            });
-                });
-    }
-
-    private List<JsonNode> toList(JsonNode arrayNode) {
-        List<JsonNode> list = new ArrayList<>();
-        if (arrayNode.isArray()) {
-            arrayNode.forEach(list::add);
-        }
-        return list;
     }
 
     private Mono<JsonNode> bulkFetchDealsFor(List<JsonNode> participations) {
