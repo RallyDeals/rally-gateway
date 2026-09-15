@@ -96,9 +96,13 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         // GET /deals (list) and GET /deals/{id} are public for anonymous browse — everything
         // else under /deals (create/update/cancel, sub-paths like /deals/{id}/join, and
         // analytics — sellers only) still needs a real identity. "/deals/*" is a single path
-        // segment, so it covers /deals/{id} without reaching into deeper sub-paths.
-        if (HttpMethod.GET.equals(method) && !"/deals/analytics".equals(path)
-                && ("/deals".equals(path) || PATH_MATCHER.match("/deals/*", path))) {
+        // segment, so it covers /deals/{id} without reaching into deeper sub-paths. GET
+        // /deals/{id}/participants and /deals/{id}/activity are also public for anonymous
+        // browsing of a deal's participants and activity feed.
+        if (HttpMethod.GET.equals(method) && !"/deals/analytics".equals(path) && !"/deals/seller-stats".equals(path)
+                && ("/deals".equals(path) || PATH_MATCHER.match("/deals/*", path)
+                || PATH_MATCHER.match("/deals/*/participants", path)
+                || PATH_MATCHER.match("/deals/*/activity", path))) {
             return true;
         }
         if (HttpMethod.GET.equals(method) && !"/products/admin".equals(path)

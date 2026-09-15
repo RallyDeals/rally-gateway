@@ -36,11 +36,12 @@ class RouteConfigTest {
         List<String> ids = routesByIdentifier().keySet().stream().toList();
 
         assertThat(ids).containsExactlyInAnyOrder(
-                "auth", "catalog", "participation", "deal", "order", "payment", "inventory", "notification",
-                "deal-list-composed", "deal-create-composed", "deal-analytics", "deal-cancel-composed",
+                "auth", "auth-avatars", "catalog", "participation", "deal", "order", "payment", "inventory",
+                "notification", "deal-list-composed", "deal-create-composed", "deal-analytics", "deal-cancel-composed",
                 "deal-update-composed", "deal-get-composed", "product-list-composed", "product-admin-passthrough",
                 "product-get-composed", "profile-personal-info-composed", "profile-my-deals-composed",
-                "profile-my-deals-summary-composed");
+                "profile-my-deals-summary-composed", "seller-composition", "sellers-composition",
+                "participant-composition");
     }
 
     @Test

@@ -107,7 +107,7 @@ class GatewayRoutingIntegrationTest {
         registry.add("spring.cloud.gateway.server.webflux.routes[8].predicates[0]", () -> "Path=/stub/**");
 
         registry.add("rally.gateway.public-paths",
-                () -> "/auth/login,/auth/register,/auth/refresh,/stub/public");
+                () -> "/auth/login,/auth/register,/auth/refresh,/stub/public/**");
 
         registry.add("rally.jwt.public-key", () -> toPem(KEY_PAIR.getPublic()));
     }
@@ -190,14 +190,14 @@ class GatewayRoutingIntegrationTest {
 
         var result = realClient.options()
                 .uri("/stub/echo")
-                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ORIGIN, "http://localhost:4200")
                 .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
                 .exchange()
                 .returnResult(String.class);
 
         assertThat(result.getStatus().value()).isEqualTo(200);
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
-                .isEqualTo("http://localhost:5173");
+                .isEqualTo("http://localhost:4200");
         assertThat(result.getResponseHeaders().getFirst(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS))
                 .isEqualTo("true");
     }

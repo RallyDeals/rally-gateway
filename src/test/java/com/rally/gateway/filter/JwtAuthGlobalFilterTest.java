@@ -55,7 +55,7 @@ class JwtAuthGlobalFilterTest {
     void validTokenInjectsIdentityHeadersAndStripsToken() {
         String token = signToken("user-1", "SELLER", Instant.now().plusSeconds(900));
 
-        FilterOutcome outcome = runFilter(exchangeFor("/products",
+        FilterOutcome outcome = runFilter(exchangeFor("/deals/12/progress",
                 "Authorization", "Bearer " + token,
                 "X-User-Id", "spoofed-user",
                 "X-User-Role", "ADMIN"));
@@ -69,7 +69,7 @@ class JwtAuthGlobalFilterTest {
 
     @Test
     void missingTokenOnProtectedPathReturns401() {
-        FilterOutcome outcome = runFilter(exchangeFor("/products"));
+        FilterOutcome outcome = runFilter(exchangeFor("/deals/12/progress"));
 
         assertThat(outcome.chained).isFalse();
         assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
@@ -81,7 +81,7 @@ class JwtAuthGlobalFilterTest {
 
     @Test
     void malformedTokenOnProtectedPathReturns401() {
-        FilterOutcome outcome = runFilter(exchangeFor("/products", "Authorization", "Bearer not-a-jwt"));
+        FilterOutcome outcome = runFilter(exchangeFor("/deals/12/progress", "Authorization", "Bearer not-a-jwt"));
 
         assertThat(outcome.chained).isFalse();
         assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
@@ -92,7 +92,7 @@ class JwtAuthGlobalFilterTest {
     void expiredTokenOnProtectedPathReturns401() {
         String expired = signToken("user-1", "SELLER", Instant.now().minusSeconds(30));
 
-        FilterOutcome outcome = runFilter(exchangeFor("/products", "Authorization", "Bearer " + expired));
+        FilterOutcome outcome = runFilter(exchangeFor("/deals/12/progress", "Authorization", "Bearer " + expired));
 
         assertThat(outcome.chained).isFalse();
         assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
@@ -143,6 +143,26 @@ class JwtAuthGlobalFilterTest {
         FilterOutcome authedOutcome = runFilter(authedPostExchange);
         assertThat(authedOutcome.chained).isTrue();
         assertThat(authedOutcome.forwarded.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("user-1");
+    }
+
+    @Test
+    void getDealParticipantsAndActivityArePublicWithoutToken() {
+        for (String path : new String[] { "/deals/1/participants", "/deals/1/activity" }) {
+            FilterOutcome outcome = runFilter(exchangeFor(path, "X-User-Id", "spoofed"));
+
+            assertThat(outcome.chained).isTrue();
+            HttpHeaders headers = outcome.forwarded.getRequest().getHeaders();
+            assertThat(headers).doesNotContainKey("Authorization");
+            assertThat(headers).doesNotContainKey("X-User-Id");
+        }
+    }
+
+    @Test
+    void otherGetDealSubpathsStillRequireAuth() {
+        FilterOutcome outcome = runFilter(exchangeFor("/deals/1/join"));
+
+        assertThat(outcome.chained).isFalse();
+        assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
     }
 
     private String signToken(String userId, String role, Instant expiry) {

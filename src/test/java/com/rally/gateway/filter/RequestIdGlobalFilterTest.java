@@ -25,28 +25,28 @@ class RequestIdGlobalFilterTest {
     }
 
     @Test
-    void injectsFreshXRequestId() {
+    void injectsFreshXCorrelationId() {
         FilterOutcome outcome = runFilter(exchangeFor("/products"));
 
         assertThat(outcome.chained).isTrue();
-        String requestId = outcome.forwarded.getRequest().getHeaders().getFirst("X-Request-Id");
+        String requestId = outcome.forwarded.getRequest().getHeaders().getFirst("X-Correlation-Id");
         assertThat(requestId).isNotBlank();
         assertThat(UUID.fromString(requestId)).isNotNull();
     }
 
     @Test
-    void stripsClientSuppliedXRequestId() {
-        FilterOutcome outcome = runFilter(exchangeFor("/products", "X-Request-Id", "client-chosen-id"));
+    void stripsClientSuppliedXCorrelationId() {
+        FilterOutcome outcome = runFilter(exchangeFor("/products", "X-Correlation-Id", "client-chosen-id"));
 
-        String requestId = outcome.forwarded.getRequest().getHeaders().getFirst("X-Request-Id");
+        String requestId = outcome.forwarded.getRequest().getHeaders().getFirst("X-Correlation-Id");
         assertThat(requestId).isNotEqualTo("client-chosen-id");
         assertThat(UUID.fromString(requestId)).isNotNull();
     }
 
     @Test
     void generatesUniqueIdsPerRequest() {
-        String first = runFilter(exchangeFor("/products")).forwarded.getRequest().getHeaders().getFirst("X-Request-Id");
-        String second = runFilter(exchangeFor("/products")).forwarded.getRequest().getHeaders().getFirst("X-Request-Id");
+        String first = runFilter(exchangeFor("/products")).forwarded.getRequest().getHeaders().getFirst("X-Correlation-Id");
+        String second = runFilter(exchangeFor("/products")).forwarded.getRequest().getHeaders().getFirst("X-Correlation-Id");
 
         assertThat(first).isNotEqualTo(second);
     }
