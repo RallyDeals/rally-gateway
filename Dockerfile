@@ -1,22 +1,39 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS build
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+# syntax=docker/dockerfile:1
+# --- Build stage ---
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
 
-WORKDIR /rally-common
-RUN git clone --depth 1 --branch main https://github.com/RallyDeals/rally-common.git .
-RUN mvn -B -q install -DskipTests
+ARG GITHUB_ACTOR
 
-WORKDIR /rally-security
-RUN git clone --depth 1 --branch main https://github.com/RallyDeals/rally-security.git .
-RUN mvn -B -q install -DskipTests
+# Write settings.xml to a path NOT shadowed by the /root/.m2 cache mount
+RUN --mount=type=secret,id=github_token \
+    mkdir -p /root/.m2-config && \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) && \
+    cat > /root/.m2-config/settings.xml <<EOF
+<settings>
+  <servers>
+    <server>
+      <id>github-common</id>
+      <username>${GITHUB_ACTOR}</username>
+      <password>${GITHUB_TOKEN}</password>
+    </server>
+    <server>
+      <id>github-security</id>
+      <username>${GITHUB_ACTOR}</username>
+      <password>${GITHUB_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
+EOF
 
-WORKDIR /rally-gateway
 COPY pom.xml .
-RUN mvn -B dependency:go-offline
-COPY src src
-RUN mvn -B -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 mvn -s /root/.m2-config/settings.xml -B dependency:go-offline
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 mvn -s /root/.m2-config/settings.xml -B clean package -DskipTests
 
+# --- Run stage ---
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /rally-gateway/target/rally-gateway.jar app.jar
-EXPOSE 8080
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8088
 ENTRYPOINT ["java", "-jar", "app.jar"]
