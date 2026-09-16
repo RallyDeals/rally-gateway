@@ -43,4 +43,7 @@ public class GatewayProperties {
 
     /** Trace/correlation header. Always reset to a fresh UUID per request. */
     private String requestIdHeader = "X-Correlation-Id";
+
+    /** W3C trace header (OpenTelemetry). Gateway-owned: preserved from OTel context or generated. */
+    private String traceparentHeader = "traceparent";
 }

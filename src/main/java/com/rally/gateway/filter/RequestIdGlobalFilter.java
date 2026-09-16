@@ -11,7 +11,7 @@ import reactor.core.publisher.Mono;
 import java.util.UUID;
 
 /**
- * Adds a {@code X-Request-Id} correlation header to every request for tracing and
+ * Adds a {@code X-Correlation-Id} correlation header to every request for tracing and
  * idempotency bookkeeping. The client-supplied value is always removed first and replaced
  * with a fresh UUID — consistent with the gateway's trust model (services must only ever
  * see header values the gateway itself generated).
@@ -28,12 +28,18 @@ public class RequestIdGlobalFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String requestIdHeader = properties.getRequestIdHeader();
+        String generatedCorrelationId = UUID.randomUUID().toString();
         ServerWebExchange traced = exchange.mutate()
                 .request(request -> request.headers(headers -> {
                     headers.remove(requestIdHeader);
-                    headers.set(requestIdHeader, UUID.randomUUID().toString());
+                    headers.set(requestIdHeader, generatedCorrelationId);
                 }))
                 .build();
+
+        traced.getResponse().beforeCommit(() -> {
+            traced.getResponse().getHeaders().set(requestIdHeader, generatedCorrelationId);
+            return Mono.empty();
+        });
         return chain.filter(traced);
     }
 
