@@ -35,6 +35,7 @@ import java.util.List;
 @Component
 public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
     private final JwtService jwtService;
     private final GatewayProperties properties;
     private final ErrorResponseWriter errorResponseWriter;
@@ -90,8 +91,6 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         return chain.filter(authenticated);
     }
 
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
-
     private boolean isPublic(String path, HttpMethod method) {
         // GET /deals (list) and GET /deals/{id} are public for anonymous browse — everything
         // else under /deals (create/update/cancel, sub-paths like /deals/{id}/join, and
@@ -111,6 +110,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         }
         if (HttpMethod.GET.equals(method)
                 && ("/categories".equals(path) || PATH_MATCHER.match("/categories/*", path))) {
+            return true;
+        }
+        if (HttpMethod.POST.equals(method) && ("/inventory/bulk".equals(path))) {
             return true;
         }
         return properties.getPublicPaths().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
