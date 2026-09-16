@@ -165,6 +165,61 @@ class JwtAuthGlobalFilterTest {
         assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
     }
 
+    @Test
+    void validTokenOnPublicProductGetInjectsIdentityHeaders() {
+        String token = signToken("seller-1", "SELLER", Instant.now().plusSeconds(900));
+        FilterOutcome outcome = runFilter(exchangeFor("/products/abc",
+                "Authorization", "Bearer " + token,
+                "X-User-Id", "spoofed",
+                "X-User-Role", "ADMIN"));
+
+        assertThat(outcome.chained).isTrue();
+        HttpHeaders headers = outcome.forwarded.getRequest().getHeaders();
+        assertThat(headers.getFirst("X-User-Id")).isEqualTo("seller-1");
+        assertThat(headers.getFirst("X-User-Role")).isEqualTo("SELLER");
+        assertThat(headers).doesNotContainKey("Authorization");
+        assertThat(headers).doesNotContainKey("X-User-Name");
+    }
+
+    @Test
+    void publicProductGetWithoutTokenForwardsAnonymous() {
+        FilterOutcome outcome = runFilter(exchangeFor("/products/abc", "X-User-Id", "spoofed"));
+
+        assertThat(outcome.chained).isTrue();
+        HttpHeaders headers = outcome.forwarded.getRequest().getHeaders();
+        assertThat(headers).doesNotContainKey("Authorization");
+        assertThat(headers).doesNotContainKey("X-User-Id");
+        assertThat(headers).doesNotContainKey("X-User-Role");
+    }
+
+    @Test
+    void expiredTokenOnPublicProductGetFallsBackToAnonymous() {
+        String expired = signToken("seller-1", "SELLER", Instant.now().minusSeconds(30));
+        FilterOutcome outcome = runFilter(exchangeFor("/products/abc", "Authorization", "Bearer " + expired));
+
+        assertThat(outcome.chained).isTrue();
+        HttpHeaders headers = outcome.forwarded.getRequest().getHeaders();
+        assertThat(headers).doesNotContainKey("Authorization");
+        assertThat(headers).doesNotContainKey("X-User-Id");
+    }
+
+    @Test
+    void publicProductGetListIsOptionalAuthToo() {
+        String token = signToken("buyer-1", "BUYER", Instant.now().plusSeconds(900));
+        FilterOutcome outcome = runFilter(exchangeFor("/products", "Authorization", "Bearer " + token));
+
+        assertThat(outcome.chained).isTrue();
+        assertThat(outcome.forwarded.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo("buyer-1");
+    }
+
+    @Test
+    void getProductsAdminStillRequiresAuth() {
+        FilterOutcome outcome = runFilter(exchangeFor("/products/admin"));
+
+        assertThat(outcome.chained).isFalse();
+        assertThat(outcome.original.getResponse().getStatusCode().value()).isEqualTo(401);
+    }
+
     private String signToken(String userId, String role, Instant expiry) {
         return Jwts.builder()
                 .subject(userId)

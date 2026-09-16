@@ -51,6 +51,12 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
 
+        // Public product GET routes authenticate optionally: a valid JWT is honored (identity
+        // headers injected so the catalog can apply owner visibility — e.g. a SELLER viewing
+        // their own REJECTED product), while missing/invalid tokens still browse anonymously.
+        if (isPublicProductGet(path, method)) {
+            return chain.filter(optionalIdentity(exchange));
+        }
         if (isPublic(path, method)) {
             return chain.filter(stripIdentityHeaders(exchange));
         }
@@ -69,11 +75,32 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             return writeUnauthorized(exchange, "Invalid token");
         }
 
+        return chain.filter(buildAuthenticated(exchange, claims));
+    }
+
+    /**
+     * Public product GET routes are browsed anonymously, but a valid JWT is still honored:
+     * identity headers are injected so downstream services can apply ownership rules. Missing
+     * or invalid tokens fall back to anonymous (identity-stripped) forwarding.
+     */
+    private ServerWebExchange optionalIdentity(ServerWebExchange exchange) {
+        String token = extractToken(exchange);
+        if (token == null) {
+            return stripIdentityHeaders(exchange);
+        }
+        try {
+            return buildAuthenticated(exchange, jwtService.parseAndValidate(token));
+        } catch (Exception ex) {
+            return stripIdentityHeaders(exchange);
+        }
+    }
+
+    private ServerWebExchange buildAuthenticated(ServerWebExchange exchange, Claims claims) {
         String userId = jwtService.getUserId(claims);
         List<String> roles = jwtService.getRoles(claims);
         String username = jwtService.getUsername(claims);
 
-        ServerWebExchange authenticated = exchange.mutate()
+        return exchange.mutate()
                 .request(request -> request.headers(headers -> {
                     headers.remove(properties.getAuthorizationHeader());
                     headers.remove(properties.getUserIdHeader());
@@ -87,8 +114,12 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                     }
                 }))
                 .build();
+    }
 
-        return chain.filter(authenticated);
+    /** {@code GET /products} and {@code GET /products/{id}} — public browse, but identity-aware. */
+    private boolean isPublicProductGet(String path, HttpMethod method) {
+        return HttpMethod.GET.equals(method) && !"/products/admin".equals(path)
+                && ("/products".equals(path) || PATH_MATCHER.match("/products/*", path));
     }
 
     private boolean isPublic(String path, HttpMethod method) {
@@ -104,8 +135,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                 || PATH_MATCHER.match("/deals/*/activity", path))) {
             return true;
         }
-        if (HttpMethod.GET.equals(method) && !"/products/admin".equals(path)
-                && ("/products".equals(path) || PATH_MATCHER.match("/products/*", path))) {
+        if (isPublicProductGet(path, method)) {
             return true;
         }
         if (HttpMethod.GET.equals(method)
