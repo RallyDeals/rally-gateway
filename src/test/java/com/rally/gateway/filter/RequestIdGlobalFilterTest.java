@@ -51,6 +51,16 @@ class RequestIdGlobalFilterTest {
         assertThat(first).isNotEqualTo(second);
     }
 
+    @Test
+    void echoesCorrelationIdInResponse() {
+        FilterOutcome outcome = runFilter(exchangeFor("/products"));
+        outcome.forwarded.getResponse().setComplete().block();
+
+        String requestId = outcome.forwarded.getRequest().getHeaders().getFirst("X-Correlation-Id");
+        assertThat(outcome.forwarded.getResponse().getHeaders().getFirst("X-Correlation-Id"))
+                .isEqualTo(requestId);
+    }
+
     private static MockServerWebExchange exchangeFor(String path, String... headerPairs) {
         MockServerHttpRequest.BaseBuilder<?> builder = MockServerHttpRequest.get(path);
         for (int i = 0; i < headerPairs.length; i += 2) {

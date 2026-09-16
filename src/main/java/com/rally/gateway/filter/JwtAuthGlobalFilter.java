@@ -142,6 +142,8 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE;
+        // After RequestId (HIGHEST_PRECEDENCE) and TracePropagation (+1) so identity is
+        // attached to an already-correlated request; before Fallback (+10).
+        return Ordered.HIGHEST_PRECEDENCE + 2;
     }
 }
