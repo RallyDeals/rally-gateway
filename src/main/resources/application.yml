@@ -6,6 +6,26 @@ management:
     web:
       exposure:
         include: health,info,gateway
+  endpoint:
+    health:
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:always}
+  tracing:
+    enabled: true
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+    baggage:
+      # Carry X-Correlation-Id as W3C baggage so it shows in MDC (%X{X-Correlation-Id})
+      # and as a span tag, searchable in Jaeger/Tempo — same as rally-payment.
+      remote-fields: X-Correlation-Id
+      correlation:
+        fields: X-Correlation-Id
+      tag-fields: X-Correlation-Id
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+          transport: http
 
 spring:
   # Load the git-ignored .env file (key=value, like a .properties file) into the
@@ -30,8 +50,18 @@ spring:
 
   cloud:
     gateway:
+      # The gateway owns trace identity itself (RequestId + TracePropagation filters):
+      # Spring Cloud Gateway's native http.client.requests observation would inject
+      # ITS OWN traceparent downstream, forking a second trace per request while the
+      # response echo carries ours. Disabled so one gateway-issued traceparent rules
+      # proxy + fan-out + response alike. (Metrics timer spring.cloud.gateway.requests
+      # is separate and unaffected.)
+      # NOTE: server-webflux key (spring.cloud.gateway.observability.* is deprecated
+      # and only temporarily remapped).
       server:
         webflux:
+          observability:
+            enabled: false
           # Safety net: never forward a raw JWT downstream. JwtAuthGlobalFilter strips it
           # too, but this guarantees it even if a route is added later without a filter.
           default-filters:
@@ -61,6 +91,11 @@ spring:
                   - DELETE
                   - OPTIONS
                 allowed-headers: "*"
+                # Lets the SPA read the correlation/trace ids (network tab shows all
+                # headers regardless; HttpClient needs them exposed to read in code).
+                exposed-headers:
+                  - X-Correlation-Id
+                  - traceparent
                 allow-credentials: true
           routes:
             # ---------- Auth Service (not built yet — default port 8084) ----------
